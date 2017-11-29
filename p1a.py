@@ -78,7 +78,6 @@ class SiameseNetwork(nn.Module):
         output1 = self.forward_once(img1)
         output2 = self.forward_once(img2)
         out = torch.cat((output1, output2), 1)
-        print out.size()
         return self.fc2(out)
 
 def show_plot(iteration,loss):
@@ -91,24 +90,23 @@ train_dataloader = DataLoader(dataset, shuffle=True, num_workers=8, batch_size=8
 
 net = SiameseNetwork().cuda()
 criterion = nn.BCELoss()
-optimizer = optim.Adam(net.parameters(), lr = .0001)
+optimizer = optim.Adam(net.parameters(), lr = .0005)
 
 counter = []
 loss_history = []
 iteration_number= 0
+m = nn.Sigmoid()
 
 for epoch in range(0, 20):
     for i, data in enumerate(train_dataloader,0):
         img1, img2, label = data
-        print img1.size()
         img1, img2, label = Variable(img1).cuda(), Variable(img2).cuda(), Variable(label).cuda()
-        print img1.size()
         output = net(img1, img2)
         optimizer.zero_grad()
-        loss = criterion(output, label)
+        loss = criterion(m(output), label)
         loss.backward()
         optimizer.step()
-        if i %10 == 0 :
+        if i %100 == 0 :
             print("Epoch number {}\n Current loss {}\n".format(epoch,loss.data[0]))
             iteration_number +=10
             counter.append(iteration_number)
