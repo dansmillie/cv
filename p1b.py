@@ -9,6 +9,7 @@ import numpy as np
 from torch.autograd import Variable
 import torch.nn as nn
 from PIL import Image
+import argparse
 
 class Loader(Dataset):
     def __init__(self, train=True, transform=None):
@@ -39,6 +40,20 @@ class Loader(Dataset):
     def __len__(self):
         return len(self.data)
 
+class ContrastiveLoss(torch.nn.Module):
+
+    def __init__(self, margin=1.0):
+        super(ContrastiveLoss, self).__init__()
+        self.margin = margin
+
+    def forward(self, output1, output2, label):
+        euclidean_distance = F.pairwise_distance(output1, output2)
+        loss_contrastive = torch.mean((1-label) * torch.pow(euclidean_distance, 2) +
+                                      (label) * torch.pow(torch.clamp(self.margin - euclidean_distance, min=0.0), 2))
+
+
+        return loss_contrastive
+
 class SiameseNetwork(nn.Module):
     def __init__(self):
         super(SiameseNetwork, self).__init__()
@@ -64,10 +79,7 @@ class SiameseNetwork(nn.Module):
             nn.ReLU(inplace=True),
             nn.BatchNorm2d(1024)
             )
-        self.fc2 = nn.Sequential(
-            nn.Linear(2048, 1),
-            nn.ReLU(inplace=True)
-            )
+
     def forward_once(self, x):
         output = self.cnn1(x)
         output = output.view(output.size()[0], -1)
@@ -77,8 +89,7 @@ class SiameseNetwork(nn.Module):
     def forward(self, img1, img2):
         output1 = self.forward_once(img1)
         output2 = self.forward_once(img2)
-        out = torch.cat((output1, output2), 1)
-        return self.fc2(out)
+        return output1, output2
 
 def show_plot(iteration,loss):
     plt.plot(iteration,loss)
@@ -97,7 +108,7 @@ def main():
     net = SiameseNetwork().cuda()
     if args.load:
         net.load_state_dict(torch.load(args.load))
-    criterion = nn.BCELoss()
+    criterion = ContrastiveLoss()
     optimizer = optim.Adam(net.parameters(), lr = .0005)
 
     counter = []
@@ -109,9 +120,9 @@ def main():
         for i, data in enumerate(train_dataloader,0):
             img1, img2, label = data
             img1, img2, label = Variable(img1).cuda(), Variable(img2).cuda(), Variable(label).cuda()
-            output = net(img1, img2)
+            output1, output2 = net(img1, img2)
             optimizer.zero_grad()
-            loss = criterion(m(output), label)
+            loss = criterion(output1, output2, label)
             loss.backward()
             optimizer.step()
             if i %100 == 0 :
