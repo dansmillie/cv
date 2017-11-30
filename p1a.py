@@ -9,6 +9,7 @@ import numpy as np
 from torch.autograd import Variable
 import torch.nn as nn
 from PIL import Image
+import argparse
 
 class Loader(Dataset):
     def __init__(self, train=True, transform=None):
